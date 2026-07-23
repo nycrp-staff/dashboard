@@ -1,1 +1,55 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>NYCRP | ER:LC Staff Portal — Login</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="css/login.css">
+</head>
+<body>
+  <div class="login-page">
+    <div class="login-scanline"></div>
+    <div class="login-card card">
+      <div class="login-badge-row">
+        <div class="login-badge-icon">
+          <!-- radio/dispatch icon -->
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M4 8a10 10 0 0 1 16 0"/><path d="M7 12a6 6 0 0 1 10 0"/>
+            <circle cx="12" cy="17" r="2"/>
+          </svg>
+        </div>
+        <div>
+          <p class="eyebrow">New York Cuty Roleplay · ER:LC</p>
+          <h1 class="login-title">Staff Portal</h1>
+        </div>
+      </div>
 
+      <p class="login-subtitle">Sign in with your staff credentials to reach the dashboard.</p>
+
+      <form id="login-form" class="login-form">
+        <label class="login-label" for="username">Staff username</label>
+        <input id="username" type="email" class="login-input" required placeholder="  " autocomplete="username" />
+
+        <label class="login-label" for="password">Password</label>
+        <input id="password" type="password" class="login-input" required placeholder="  " autocomplete="current-password" />
+
+        <div id="login-error" class="login-error hidden"></div>
+
+        <button type="submit" id="login-submit" class="login-submit">Sign in</button>
+      </form>
+
+      <div class="login-footer">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M12 2 4 6v6c0 5 3.5 8.5 8 10 4.5-1.5 8-5 8-10V6z"/>
+        </svg>
+        <span>Access is restricted to authorized NYCRP staff accounts.</span>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="js/auth.js"></script>
+</body>
+</html>
