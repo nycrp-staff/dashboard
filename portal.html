@@ -1,0 +1,191 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>NYCRP | ER:LC Staff Portal</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="css/portal.css">
+</head>
+<body>
+  <div id="portal-root" class="portal-layout">
+
+    <aside class="sidebar">
+      <div class="sidebar-brand">
+        <div class="sidebar-brand-icon">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M4 8a10 10 0 0 1 16 0"/><path d="M7 12a6 6 0 0 1 10 0"/><circle cx="12" cy="17" r="2"/>
+          </svg>
+        </div>
+        <div>
+          <p class="sidebar-brand-eyebrow">NYCRP</p>
+          <p class="sidebar-brand-name">ER:LC Staff Portal</p>
+        </div>
+      </div>
+
+      <nav class="sidebar-nav" id="sidebar-nav">
+        <button class="sidebar-nav-item active" data-section="home">Home</button>
+        <button class="sidebar-nav-item" data-section="rules">Server Rules</button>
+        <button class="sidebar-nav-item" data-section="faqs">FAQs</button>
+        <button class="sidebar-nav-item" data-section="calendar">Event Calendar</button>
+        <button class="sidebar-nav-item" data-section="departments">Departments</button>
+        <button class="sidebar-nav-item" data-section="directory">Staff Directory</button>
+        <button class="sidebar-nav-item" data-section="updates">Updates / News</button>
+        <button class="sidebar-nav-item" data-section="media">Media Gallery</button>
+        <button class="sidebar-nav-item" data-section="applications">Internal Applications</button>
+      </nav>
+
+      <div class="sidebar-user">
+        <div id="user-callsign" class="callsign blue">UNASSIGNED</div>
+        <p id="user-name" class="sidebar-user-name">Staff member</p>
+        <p id="user-department" class="sidebar-user-role">No department set</p>
+        <button id="logout-btn" class="sidebar-logout">Sign out</button>
+      </div>
+    </aside>
+
+    <main class="portal-main">
+
+      <!-- ============ HOME ============ -->
+      <section id="section-home" class="page-section active">
+        <div class="page-header">
+          <div>
+            <p class="eyebrow">Dashboard</p>
+            <h1 id="home-welcome">Welcome back</h1>
+            <p>Here's what's active across NYCRP right now — announcements, upcoming events, and the fastest way to the pages you use most.</p>
+          </div>
+        </div>
+
+        <div class="dashboard-grid">
+          <section class="card" style="padding:20px;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;">
+              <h2 style="font-size:var(--text-lg);">Latest activity</h2>
+              <span class="status-pill info"><span class="dot"></span>Live</span>
+            </div>
+            <div id="home-activity-feed"></div>
+            <button class="section-link" data-goto="updates" style="background:none;border:none;">View all updates →</button>
+          </section>
+
+          <section class="card" style="padding:20px;">
+            <h2 style="font-size:var(--text-lg); margin-bottom:14px;">Upcoming events</h2>
+            <div id="home-events-feed"></div>
+            <button class="section-link" data-goto="calendar" style="background:none;border:none;">Full calendar →</button>
+          </section>
+        </div>
+
+        <h2 style="font-size:var(--text-lg); margin:28px 0 0;">Quick links</h2>
+        <div class="quick-links-grid" id="home-quick-links"></div>
+      </section>
+
+      <!-- ============ SERVER RULES ============ -->
+      <section id="section-rules" class="page-section">
+        <div class="page-header">
+          <div>
+            <p class="eyebrow">Reference</p>
+            <h1>Server Rules</h1>
+            <p>The official rules, procedures, and expectations every staff member is accountable to.</p>
+          </div>
+        </div>
+        <div id="rules-list"></div>
+      </section>
+
+      <!-- ============ FAQs ============ -->
+      <section id="section-faqs" class="page-section">
+        <div class="page-header">
+          <div>
+            <p class="eyebrow">Reference</p>
+            <h1>Frequently Asked Questions</h1>
+            <p>Quick answers to the questions staff ask most — check here before opening a ticket.</p>
+          </div>
+        </div>
+        <div id="faqs-list"></div>
+      </section>
+
+      <!-- ============ EVENT CALENDAR ============ -->
+      <section id="section-calendar" class="page-section">
+        <div class="page-header">
+          <div>
+            <p class="eyebrow">Schedule</p>
+            <h1>Event Calendar</h1>
+            <p>Upcoming sessions, meetings, and deadlines across NYCRP.</p>
+          </div>
+        </div>
+        <div id="calendar-list"></div>
+      </section>
+
+      <!-- ============ DEPARTMENTS ============ -->
+      <section id="section-departments" class="page-section">
+        <div class="page-header">
+          <div>
+            <p class="eyebrow">Organization</p>
+            <h1>Departments</h1>
+            <p>Structure, responsibilities, and leadership across every department in NYCRP.</p>
+          </div>
+        </div>
+        <div class="dept-grid" id="departments-grid"></div>
+      </section>
+
+      <!-- ============ STAFF DIRECTORY ============ -->
+      <section id="section-directory" class="page-section">
+        <div class="page-header">
+          <div>
+            <p class="eyebrow">Organization</p>
+            <h1>Staff Directory</h1>
+            <p>Current staff, callsigns, and departments — the roster referenced from Departments.</p>
+          </div>
+        </div>
+        <div class="card directory-table" id="directory-table"></div>
+      </section>
+
+      <!-- ============ UPDATES / NEWS ============ -->
+      <section id="section-updates" class="page-section">
+        <div class="page-header">
+          <div>
+            <p class="eyebrow">Announcements</p>
+            <h1>Updates / News</h1>
+            <p>Official announcements and organizational news, most recent first.</p>
+          </div>
+          <button id="new-post-btn" class="btn btn-primary hidden">+ New post</button>
+        </div>
+
+        <form id="update-form" class="card hidden">
+          <input id="update-title" required placeholder="Post title" />
+          <textarea id="update-body" required rows="4" placeholder="Write the announcement…"></textarea>
+          <button type="submit" class="btn btn-dark" style="align-self:flex-start;">Publish</button>
+        </form>
+
+        <div id="updates-list"></div>
+      </section>
+
+      <!-- ============ MEDIA GALLERY ============ -->
+      <section id="section-media" class="page-section">
+        <div class="page-header">
+          <div>
+            <p class="eyebrow">Archive</p>
+            <h1>Media Gallery</h1>
+            <p>Approved photos and media from events, departments, and the community.</p>
+          </div>
+        </div>
+        <div class="gallery-filters" id="gallery-filters"></div>
+        <div class="gallery-grid" id="gallery-grid"></div>
+      </section>
+
+      <!-- ============ INTERNAL APPLICATIONS ============ -->
+      <section id="section-applications" class="page-section">
+        <div class="page-header">
+          <div>
+            <p class="eyebrow">Opportunities</p>
+            <h1>Internal Applications</h1>
+            <p>Open positions and internal opportunities across NYCRP departments.</p>
+          </div>
+        </div>
+        <div id="applications-list"></div>
+      </section>
+
+    </main>
+  </div>
+
+  <script type="module" src="js/portal.js"></script>
+</body>
+</html>
