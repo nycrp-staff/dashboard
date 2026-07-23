@@ -1,15 +1,16 @@
 // portal.js
 // Renders every section of the staff portal and wires up navigation,
-// accordions, the media lightbox, and the (role-gated) publish form.
+// accordions, the media lightbox, and role-gated publish forms.
 //
-// Every array below is placeholder data. Each render function is the
-// spot to swap in a live Firestore query — see the comment above each
-// one for the exact collection it maps to.
+// Live Firestore wiring: Updates/News, Staff Directory, Media Gallery,
+// Internal Applications, and Event Calendar all read from and (where
+// noted) write to Firestore. Departments still renders from a
+// placeholder array -- say the word if you want that wired up too.
 
 import { guardPortal, logout } from './auth.js';
 import { db } from './firebase-config.js';
 import {
-  collection, addDoc, serverTimestamp,
+  collection, addDoc, getDocs, query, orderBy, where, serverTimestamp,
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 guardPortal((user, profile) => {
@@ -19,9 +20,14 @@ guardPortal((user, profile) => {
     `Welcome back${profile?.username ? `, ${profile.username}` : ''}`;
 
   const canPublish = profile?.roleTier === 'management' || profile?.roleTier === 'admin';
-  if (canPublish) document.getElementById('new-post-btn').classList.remove('hidden');
+  const session = { canPublish, authorName: profile?.username ?? user.email };
 
-  initPortal({ canPublish, authorName: profile?.username ?? user.email });
+  if (canPublish) {
+    ['new-post-btn', 'new-event-btn', 'new-media-btn', 'new-application-btn']
+      .forEach((id) => document.getElementById(id).classList.remove('hidden'));
+  }
+
+  initPortal(session);
 });
 
 document.getElementById('logout-btn').addEventListener('click', () => logout());
@@ -31,19 +37,18 @@ function initPortal(session) {
   renderHome();
   renderRules();
   renderFAQs();
-  renderCalendar();
+  renderCalendar(session);
   renderDepartments();
   renderDirectory();
   renderUpdates(session);
-  renderMedia();
-  renderApplications();
+  renderMedia(session);
+  renderApplications(session);
 }
 
 // ---------- Navigation ----------
 
 function setupNav() {
-  const buttons = document.querySelectorAll('.sidebar-nav-item');
-  buttons.forEach((btn) => {
+  document.querySelectorAll('.sidebar-nav-item').forEach((btn) => {
     btn.addEventListener('click', () => goToSection(btn.dataset.section));
   });
   document.querySelectorAll('[data-goto]').forEach((el) => {
@@ -60,15 +65,22 @@ function goToSection(name) {
   });
 }
 
+// Wires a "+ New ___" button to show/hide its form, and returns the
+// form element so callers can attach their own submit handler.
+function setupPublishToggle(btnId, formId) {
+  const btn = document.getElementById(btnId);
+  const form = document.getElementById(formId);
+  btn.addEventListener('click', () => form.classList.toggle('hidden'));
+  return form;
+}
+
 // ---------- Home ----------
-// Replace with: query(collection(db, 'updates'), orderBy('createdAt','desc'), limit(3))
 const RECENT_ACTIVITY = [
   { title: 'Winter event schedule posted', author: 'Command Staff', time: '2h ago', tone: 'info' },
-  { title: 'Server Rules §4 (Vehicle Conduct) revised', author: 'Admin Team', time: '1d ago', tone: 'warn' },
+  { title: 'Server Rules \u00a74 (Vehicle Conduct) revised', author: 'Admin Team', time: '1d ago', tone: 'warn' },
   { title: 'EMS department recruiting for winter cycle', author: 'EMS Command', time: '3d ago', tone: 'open' },
 ];
 
-// Replace with: query(collection(db, 'events'), orderBy('date'), limit(2))
 const UPCOMING_EVENTS_HOME = [
   { title: 'Weekly Patrol Session', date: 'Sat, Jul 25', time: '8:00 PM ET' },
   { title: 'Department Head Meeting', date: 'Mon, Jul 27', time: '9:00 PM ET' },
@@ -88,7 +100,7 @@ function renderHome() {
       <span class="status-pill ${u.tone}" style="height:fit-content;"><span class="dot"></span></span>
       <div>
         <p class="activity-title">${escapeHTML(u.title)}</p>
-        <p class="activity-meta">${escapeHTML(u.author)} · ${escapeHTML(u.time)}</p>
+        <p class="activity-meta">${escapeHTML(u.author)} \u00b7 ${escapeHTML(u.time)}</p>
       </div>
     </div>
   `).join('');
@@ -97,7 +109,7 @@ function renderHome() {
   events.innerHTML = UPCOMING_EVENTS_HOME.map((e) => `
     <div class="event-row">
       <p class="activity-title">${escapeHTML(e.title)}</p>
-      <p class="activity-meta">${escapeHTML(e.date)} · ${escapeHTML(e.time)}</p>
+      <p class="activity-meta">${escapeHTML(e.date)} \u00b7 ${escapeHTML(e.time)}</p>
     </div>
   `).join('');
 
@@ -113,12 +125,11 @@ function renderHome() {
 }
 
 // ---------- Server Rules ----------
-// Replace with: getDocs(collection(db, 'rules_doc'))
 const RULE_CATEGORIES = [
   {
     title: 'General Conduct',
     rules: [
-      'Treat all members and guests with respect — harassment of any kind results in immediate action.',
+      'Treat all members and guests with respect \u2014 harassment of any kind results in immediate action.',
       'No discrimination, hate speech, or targeted harassment in any channel or in-game.',
       'Staff decisions may be appealed through the proper channel, not disputed in public chat.',
     ],
@@ -127,7 +138,7 @@ const RULE_CATEGORIES = [
     title: 'Roleplay Standards',
     rules: [
       'Fail RP (breaking immersion without cause) is not permitted during active scenes.',
-      'Powergaming and metagaming are prohibited — act only on what your character could reasonably know.',
+      'Powergaming and metagaming are prohibited \u2014 act only on what your character could reasonably know.',
       'Vehicle and firearm roleplay must follow department-specific SOPs.',
     ],
   },
@@ -158,10 +169,9 @@ function renderRules() {
 }
 
 // ---------- FAQs ----------
-// Replace with: getDocs(collection(db, 'faqs'))
 const FAQS = [
   { q: 'How do I request a leave of absence?', a: 'Submit a LOA form through the Internal Applications page under your department, and tag your department head for approval.' },
-  { q: 'Who do I contact for a rule dispute?', a: 'Open a ticket in the staff Discord support channel — do not dispute moderation actions in public chat.' },
+  { q: 'Who do I contact for a rule dispute?', a: 'Open a ticket in the staff Discord support channel \u2014 do not dispute moderation actions in public chat.' },
   { q: 'How often is the Event Calendar updated?', a: 'Command staff update it weekly, typically every Sunday, with the following week\u2019s scheduled sessions.' },
   { q: 'Where can I find department-specific SOPs?', a: 'Each department card on the Departments page links out to its SOP document once published.' },
 ];
@@ -188,37 +198,84 @@ function wireAccordions(container) {
   });
 }
 
-// ---------- Event Calendar ----------
-// Replace with: query(collection(db, 'events'), orderBy('date'))
-const EVENTS = [
-  { title: 'Weekly Patrol Session', day: 'Sat', num: 'Jul 25', time: '8:00 PM ET', location: 'Main server', tag: 'Recurring' },
-  { title: 'Department Head Meeting', day: 'Mon', num: 'Jul 27', time: '9:00 PM ET', location: 'Discord — Command VC', tag: 'Staff only' },
-  { title: 'EMS Training Night', day: 'Wed', num: 'Jul 29', time: '7:30 PM ET', location: 'Training server', tag: 'Department' },
-  { title: 'Community Takeover Event', day: 'Sat', num: 'Aug 1', time: '6:00 PM ET', location: 'Main server', tag: 'Community' },
-];
+// ---------- Event Calendar (live Firestore) ----------
+// Reads: /events, ordered by date ascending (date is stored as an
+// ISO string like "2026-07-25", which sorts correctly as text).
+// Writes: management/admin only, matching firestore.rules.
 
-function renderCalendar() {
+function formatEventDate(dateStr) {
+  const d = new Date(`${dateStr}T00:00:00`);
+  return {
+    day: d.toLocaleDateString('en-US', { weekday: 'short' }),
+    num: d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+  };
+}
+
+async function loadEvents() {
+  const snap = await getDocs(query(collection(db, 'events'), orderBy('date', 'asc')));
+  return snap.docs.map((d) => d.data());
+}
+
+function renderEventsList(events) {
   const el = document.getElementById('calendar-list');
-  el.innerHTML = EVENTS.map((e) => `
-    <div class="card event-item">
-      <div class="event-date">
-        <p class="day">${escapeHTML(e.day)}</p>
-        <p class="num">${escapeHTML(e.num)}</p>
-      </div>
-      <div class="event-details">
-        <p>${escapeHTML(e.title)}</p>
-        <div class="event-meta">
-          <span>${escapeHTML(e.time)}</span>
-          <span>${escapeHTML(e.location)}</span>
+  if (events.length === 0) {
+    el.innerHTML = '<p class="eyebrow">No events posted yet.</p>';
+    return;
+  }
+  el.innerHTML = events.map((e) => {
+    const { day, num } = formatEventDate(e.date);
+    return `
+      <div class="card event-item">
+        <div class="event-date">
+          <p class="day">${escapeHTML(day)}</p>
+          <p class="num">${escapeHTML(num)}</p>
         </div>
+        <div class="event-details">
+          <p>${escapeHTML(e.title)}</p>
+          <div class="event-meta">
+            <span>${escapeHTML(e.time)}</span>
+            <span>${escapeHTML(e.location)}</span>
+          </div>
+        </div>
+        <span class="status-pill info">${escapeHTML(e.tag)}</span>
       </div>
-      <span class="status-pill info">${escapeHTML(e.tag)}</span>
-    </div>
-  `).join('');
+    `;
+  }).join('');
+}
+
+async function renderCalendar(session) {
+  try {
+    renderEventsList(await loadEvents());
+  } catch (err) {
+    console.error('Failed to load events', err);
+    document.getElementById('calendar-list').innerHTML = '<p class="eyebrow">Couldn\u2019t load events.</p>';
+  }
+
+  if (!session.canPublish) return;
+  const form = setupPublishToggle('new-event-btn', 'event-form');
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const title = document.getElementById('event-title').value;
+    const date = document.getElementById('event-date').value;
+    const time = document.getElementById('event-time').value;
+    const location = document.getElementById('event-location').value;
+    const tag = document.getElementById('event-tag').value;
+
+    try {
+      await addDoc(collection(db, 'events'), { title, date, time, location, tag, createdAt: serverTimestamp() });
+      form.reset();
+      form.classList.add('hidden');
+      renderEventsList(await loadEvents());
+    } catch (err) {
+      console.error('Failed to add event', err);
+      alert('Could not save the event -- check the console for details.');
+    }
+  });
 }
 
 // ---------- Departments ----------
-// Replace with: getDocs(collection(db, 'departments'))
+// Still placeholder -- say the word if you want this wired to
+// getDocs(collection(db, 'departments')) too.
 const DEPARTMENTS = [
   { name: 'Police Department', description: 'Handles patrol, traffic enforcement, and criminal investigations across the city.', lead: 'Chief R. Alvarez' },
   { name: 'Emergency Medical Services', description: 'Responds to medical emergencies and coordinates with fire and police on scene.', lead: 'Director T. Nguyen' },
@@ -234,23 +291,29 @@ function renderDepartments() {
         <h3 style="font-size:var(--text-lg);">${escapeHTML(d.name)}</h3>
       </div>
       <p class="dept-desc">${escapeHTML(d.description)}</p>
-      <p class="dept-lead">Lead — ${escapeHTML(d.lead)}</p>
+      <p class="dept-lead">Lead \u2014 ${escapeHTML(d.lead)}</p>
     </div>
   `).join('');
 }
 
-// ---------- Staff Directory ----------
-// Replace with: query(collection(db, 'staff'), where('active','==',true))
-const STAFF = [
-  { name: 'R. Alvarez', department: 'Police Department', rank: 'Chief' },
-  { name: 'T. Nguyen', department: 'Emergency Medical Services', rank: 'Director' },
-  { name: 'M. Okafor', department: 'Fire Department', rank: 'Chief' },
-  { name: 'S. Patel', department: 'Human Resources', rank: 'Director' },
-  { name: 'J. Ruiz', department: 'Police Department', rank: 'Deputy Chief' },
-];
+// ---------- Staff Directory (live Firestore) ----------
+// Reads every /staff doc with active == true, sorted by username.
 
-function renderDirectory() {
+async function renderDirectory() {
   const el = document.getElementById('directory-table');
+  el.innerHTML = '<p class="eyebrow" style="padding:16px 20px;">Loading roster\u2026</p>';
+
+  let staffList = [];
+  try {
+    const snap = await getDocs(query(collection(db, 'staff'), where('active', '==', true)));
+    staffList = snap.docs.map((d) => d.data()).sort((a, b) =>
+      (a.username ?? '').localeCompare(b.username ?? ''));
+  } catch (err) {
+    console.error('Failed to load staff directory', err);
+    el.innerHTML = '<p class="eyebrow" style="padding:16px 20px;">Couldn\u2019t load the staff directory.</p>';
+    return;
+  }
+
   const header = `
     <div class="directory-row directory-header">
       <span class="eyebrow" style="margin:0;">Name</span>
@@ -258,98 +321,101 @@ function renderDirectory() {
       <span class="eyebrow" style="margin:0;">Rank</span>
     </div>
   `;
-  const rows = STAFF.map((s) => `
+  const rows = staffList.map((s) => `
     <div class="directory-row">
-      <span class="directory-name">${escapeHTML(s.name)}</span>
-      <span class="directory-cell">${escapeHTML(s.department)}</span>
-      <span class="directory-cell">${escapeHTML(s.rank)}</span>
+      <span class="directory-name">${escapeHTML(s.username ?? '\u2014')}</span>
+      <span class="directory-cell">${escapeHTML(s.department ?? '\u2014')}</span>
+      <span class="directory-cell">${escapeHTML(s.rank ?? '\u2014')}</span>
     </div>
   `).join('');
-  el.innerHTML = header + rows;
+  el.innerHTML = header + (rows || '<p class="eyebrow" style="padding:16px 20px;">No active staff on file yet.</p>');
 }
 
-// ---------- Updates / News ----------
-// Replace with: query(collection(db, 'updates'), orderBy('createdAt','desc'))
-let POSTS = [
-  { title: 'Winter event schedule posted', author: 'Command Staff', date: 'Jul 20, 2026', body: 'The full winter event lineup is now live on the Event Calendar — expect two community takeovers and a department showcase.' },
-  { title: 'Server Rules §4 (Vehicle Conduct) revised', author: 'Admin Team', date: 'Jul 19, 2026', body: 'Vehicle conduct rules have been clarified around pursuit termination. Review the updated Server Rules page.' },
-  { title: 'EMS department recruiting for winter cycle', author: 'EMS Command', date: 'Jul 17, 2026', body: 'EMS is opening additional slots this cycle. See Internal Applications for requirements.' },
-];
+// ---------- Updates / News (live Firestore) ----------
 
-function renderUpdates(session) {
-  const form = document.getElementById('update-form');
-  if (session.canPublish) {
-    document.getElementById('new-post-btn').addEventListener('click', () => {
-      form.classList.toggle('hidden');
-    });
-    form.addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const title = document.getElementById('update-title').value;
-      const body = document.getElementById('update-body').value;
-
-      // Live version: await addDoc(collection(db, 'updates'), {
-      //   title, body, authorName: session.authorName, createdAt: serverTimestamp(),
-      // });
-      POSTS = [{ title, author: session.authorName, date: 'Just now', body }, ...POSTS];
-      renderPostsList();
-      form.reset();
-      form.classList.add('hidden');
-    });
-  }
-  renderPostsList();
+async function loadUpdates() {
+  const snap = await getDocs(query(collection(db, 'updates'), orderBy('createdAt', 'desc')));
+  return snap.docs.map((d) => d.data());
 }
 
-function renderPostsList() {
+function formatTimestamp(ts) {
+  if (!ts?.toDate) return 'Just now';
+  return ts.toDate().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+}
+
+function renderPostsList(posts) {
   const el = document.getElementById('updates-list');
-  el.innerHTML = POSTS.map((p) => `
+  if (posts.length === 0) {
+    el.innerHTML = '<p class="eyebrow">No announcements posted yet.</p>';
+    return;
+  }
+  el.innerHTML = posts.map((p) => `
     <article class="card post-card">
       <div class="post-top">
         <h3>${escapeHTML(p.title)}</h3>
-        <span class="post-timestamp">${escapeHTML(p.date)}</span>
+        <span class="post-timestamp">${escapeHTML(formatTimestamp(p.createdAt))}</span>
       </div>
-      <p class="post-author">${escapeHTML(p.author)}</p>
+      <p class="post-author">${escapeHTML(p.authorName ?? '')}</p>
       <p class="post-body">${escapeHTML(p.body)}</p>
     </article>
   `).join('');
 }
 
-// ---------- Media Gallery ----------
-// Replace with: getDocs(collection(db, 'media'))
-const MEDIA_CATEGORIES = ['All', 'Events', 'Departments', 'Community'];
-const MEDIA = [
-  { category: 'Events', caption: 'Winter Takeover 2025' },
-  { category: 'Departments', caption: 'PD graduation ceremony' },
-  { category: 'Community', caption: 'Community car meet' },
-  { category: 'Events', caption: 'Anniversary celebration' },
-  { category: 'Departments', caption: 'EMS training exercise' },
-  { category: 'Community', caption: 'Staff appreciation night' },
-];
+async function renderUpdates(session) {
+  try {
+    renderPostsList(await loadUpdates());
+  } catch (err) {
+    console.error('Failed to load updates', err);
+    document.getElementById('updates-list').innerHTML = '<p class="eyebrow">Couldn\u2019t load updates.</p>';
+  }
 
-function renderMedia() {
-  const filtersEl = document.getElementById('gallery-filters');
-  filtersEl.innerHTML = MEDIA_CATEGORIES.map((c, i) => `
-    <button class="gallery-filter ${i === 0 ? 'active' : ''}" data-cat="${escapeHTML(c)}">${escapeHTML(c)}</button>
-  `).join('');
+  if (!session.canPublish) return;
+  const form = setupPublishToggle('new-post-btn', 'update-form');
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const title = document.getElementById('update-title').value;
+    const body = document.getElementById('update-body').value;
 
-  filtersEl.querySelectorAll('.gallery-filter').forEach((btn) => {
-    btn.addEventListener('click', () => {
-      filtersEl.querySelectorAll('.gallery-filter').forEach((b) => b.classList.remove('active'));
-      btn.classList.add('active');
-      renderGalleryGrid(btn.dataset.cat);
-    });
+    try {
+      await addDoc(collection(db, 'updates'), {
+        title, body, authorName: session.authorName, createdAt: serverTimestamp(),
+      });
+      form.reset();
+      form.classList.add('hidden');
+      renderPostsList(await loadUpdates());
+    } catch (err) {
+      console.error('Failed to publish update', err);
+      alert('Could not publish -- check the console for details.');
+    }
   });
-
-  renderGalleryGrid('All');
 }
 
-function renderGalleryGrid(filter) {
+// ---------- Media Gallery (live Firestore) ----------
+
+const MEDIA_CATEGORIES = ['All', 'Events', 'Departments', 'Community'];
+
+async function loadMedia() {
+  const snap = await getDocs(collection(db, 'media'));
+  return snap.docs.map((d) => d.data());
+}
+
+function galleryThumbHTML(m) {
+  if (m.imageUrl) {
+    return `<img src="${escapeHTML(m.imageUrl)}" alt="${escapeHTML(m.caption)}" style="width:100%;height:100%;object-fit:cover;" />`;
+  }
+  return `<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/></svg>`;
+}
+
+function renderGalleryGrid(allMedia, filter) {
   const el = document.getElementById('gallery-grid');
-  const items = filter === 'All' ? MEDIA : MEDIA.filter((m) => m.category === filter);
+  const items = filter === 'All' ? allMedia : allMedia.filter((m) => m.category === filter);
+  if (items.length === 0) {
+    el.innerHTML = '<p class="eyebrow">No media in this category yet.</p>';
+    return;
+  }
   el.innerHTML = items.map((m) => `
-    <button class="card gallery-item" data-caption="${escapeHTML(m.caption)}">
-      <div class="gallery-thumb">
-        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/></svg>
-      </div>
+    <button class="card gallery-item" data-caption="${escapeHTML(m.caption)}" data-url="${escapeHTML(m.imageUrl ?? '')}">
+      <div class="gallery-thumb">${galleryThumbHTML(m)}</div>
       <div class="gallery-caption">
         <p>${escapeHTML(m.caption)}</p>
         <span class="status-pill info">${escapeHTML(m.category)}</span>
@@ -358,13 +424,62 @@ function renderGalleryGrid(filter) {
   `).join('');
 
   el.querySelectorAll('.gallery-item').forEach((btn) => {
-    btn.addEventListener('click', () => openLightbox(btn.dataset.caption));
+    btn.addEventListener('click', () => openLightbox(btn.dataset.caption, btn.dataset.url));
   });
 }
 
-function openLightbox(caption) {
+async function renderMedia(session) {
+  let allMedia = [];
+  try {
+    allMedia = await loadMedia();
+  } catch (err) {
+    console.error('Failed to load media', err);
+  }
+
+  const filtersEl = document.getElementById('gallery-filters');
+  filtersEl.innerHTML = MEDIA_CATEGORIES.map((c, i) => `
+    <button class="gallery-filter ${i === 0 ? 'active' : ''}" data-cat="${escapeHTML(c)}">${escapeHTML(c)}</button>
+  `).join('');
+  filtersEl.querySelectorAll('.gallery-filter').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      filtersEl.querySelectorAll('.gallery-filter').forEach((b) => b.classList.remove('active'));
+      btn.classList.add('active');
+      renderGalleryGrid(allMedia, btn.dataset.cat);
+    });
+  });
+  renderGalleryGrid(allMedia, 'All');
+
+  if (!session.canPublish) return;
+  const form = setupPublishToggle('new-media-btn', 'media-form');
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const caption = document.getElementById('media-caption').value;
+    const category = document.getElementById('media-category').value;
+    const imageUrl = document.getElementById('media-url').value || null;
+
+    try {
+      await addDoc(collection(db, 'media'), {
+        caption, category, imageUrl, uploadedBy: session.authorName, createdAt: serverTimestamp(),
+      });
+      form.reset();
+      form.classList.add('hidden');
+      allMedia = await loadMedia();
+      renderGalleryGrid(allMedia, 'All');
+      filtersEl.querySelectorAll('.gallery-filter').forEach((b, i) => b.classList.toggle('active', i === 0));
+    } catch (err) {
+      console.error('Failed to add media', err);
+      alert('Could not save the media entry -- check the console for details.');
+    }
+  });
+}
+
+function openLightbox(caption, imageUrl) {
   const existing = document.querySelector('.lightbox');
   if (existing) existing.remove();
+
+  const imageHTML = imageUrl
+    ? `<img src="${escapeHTML(imageUrl)}" alt="${escapeHTML(caption)}" style="width:100%;height:100%;object-fit:cover;border-radius:var(--radius-md);" />`
+    : `<svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/></svg>`;
 
   const overlay = document.createElement('div');
   overlay.className = 'lightbox';
@@ -372,11 +487,9 @@ function openLightbox(caption) {
     <div class="lightbox-inner">
       <div class="lightbox-top">
         <p style="margin:0; font-weight:600;">${escapeHTML(caption)}</p>
-        <button class="lightbox-close">✕</button>
+        <button class="lightbox-close">\u2715</button>
       </div>
-      <div class="lightbox-image">
-        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/></svg>
-      </div>
+      <div class="lightbox-image">${imageHTML}</div>
     </div>
   `;
   overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
@@ -384,34 +497,74 @@ function openLightbox(caption) {
   document.body.appendChild(overlay);
 }
 
-// ---------- Internal Applications ----------
-// Replace with: getDocs(collection(db, 'applications'))
-const APPLICATIONS = [
-  { name: 'Police Department — Cadet', status: 'open', tone: 'open', description: 'Entry-level position for new recruits joining the Police Department.', requirements: ['14+ days in the group', 'No active warnings', 'Available for weekly training'] },
-  { name: 'Fire Department — Firefighter', status: 'open', tone: 'open', description: 'Join the Fire Department\u2019s response roster.', requirements: ['7+ days in the group', 'Discord voice access'] },
-  { name: 'Media Team — Content Creator', status: 'under review', tone: 'warn', description: 'Produce highlight clips and promotional media for NYCRP.', requirements: ['Portfolio of prior edits', 'Active in community events'] },
-  { name: 'Command Staff — Internal Affairs', status: 'closed', tone: 'closed', description: 'Investigates staff conduct reports. Applications closed for this cycle.', requirements: ['Management-tier and above'] },
-];
+// ---------- Internal Applications (live Firestore) ----------
 
-function renderApplications() {
+async function loadApplications() {
+  const snap = await getDocs(query(collection(db, 'applications'), orderBy('createdAt', 'desc')));
+  return snap.docs.map((d) => d.data());
+}
+
+function statusTone(status) {
+  if (status === 'open') return 'open';
+  if (status === 'under review') return 'warn';
+  return 'closed';
+}
+
+function renderApplicationsList(applications) {
   const el = document.getElementById('applications-list');
-  el.innerHTML = APPLICATIONS.map((a) => `
+  if (applications.length === 0) {
+    el.innerHTML = '<p class="eyebrow">No listings posted yet.</p>';
+    return;
+  }
+  el.innerHTML = applications.map((a) => `
     <div class="card application-card">
       <div class="application-top">
         <h3 style="font-size:var(--text-lg);">${escapeHTML(a.name)}</h3>
-        <span class="status-pill ${a.tone}"><span class="dot"></span>${escapeHTML(a.status)}</span>
+        <span class="status-pill ${statusTone(a.status)}"><span class="dot"></span>${escapeHTML(a.status)}</span>
       </div>
       <p class="application-desc">${escapeHTML(a.description)}</p>
-      <ul class="application-reqs">${a.requirements.map((r) => `<li>${escapeHTML(r)}</li>`).join('')}</ul>
+      <ul class="application-reqs">${(a.requirements ?? []).map((r) => `<li>${escapeHTML(r)}</li>`).join('')}</ul>
       ${a.status === 'open' ? '<button class="btn btn-primary application-apply">Apply</button>' : ''}
     </div>
   `).join('');
+}
+
+async function renderApplications(session) {
+  try {
+    renderApplicationsList(await loadApplications());
+  } catch (err) {
+    console.error('Failed to load applications', err);
+    document.getElementById('applications-list').innerHTML = '<p class="eyebrow">Couldn\u2019t load listings.</p>';
+  }
+
+  if (!session.canPublish) return;
+  const form = setupPublishToggle('new-application-btn', 'application-form');
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const name = document.getElementById('application-name').value;
+    const description = document.getElementById('application-description').value;
+    const requirements = document.getElementById('application-requirements').value
+      .split('\n').map((r) => r.trim()).filter(Boolean);
+    const status = document.getElementById('application-status').value;
+
+    try {
+      await addDoc(collection(db, 'applications'), {
+        name, description, requirements, status, createdAt: serverTimestamp(),
+      });
+      form.reset();
+      form.classList.add('hidden');
+      renderApplicationsList(await loadApplications());
+    } catch (err) {
+      console.error('Failed to publish listing', err);
+      alert('Could not publish the listing -- check the console for details.');
+    }
+  });
 }
 
 // ---------- Utility ----------
 
 function escapeHTML(str) {
   const div = document.createElement('div');
-  div.textContent = str;
+  div.textContent = str ?? '';
   return div.innerHTML;
 }
