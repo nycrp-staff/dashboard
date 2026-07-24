@@ -10,6 +10,16 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { doc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
+// Staff sign in with a short username (e.g. "pd1") rather than typing
+const STAFF_EMAIL_DOMAIN = '@nycrp.staff';
+
+function toStaffEmail(rawInput) {
+  const value = rawInput.trim();
+  // Still works if someone pastes a full email (their own, or from an
+  // older bookmark/autofill) — it won't get double-appended.
+  return value.includes('@') ? value : `${value}${STAFF_EMAIL_DOMAIN}`;
+}
+
 // ---------- Login page (index.html) ----------
 
 const loginForm = document.getElementById('login-form');
@@ -29,11 +39,11 @@ if (loginForm) {
     submitBtn.disabled = true;
     submitBtn.textContent = 'Signing in…';
 
-    const username = document.getElementById('username').value;
+    const email = toStaffEmail(document.getElementById('username').value);
     const password = document.getElementById('password').value;
 
     try {
-      await signInWithEmailAndPassword(auth, username, password);
+      await signInWithEmailAndPassword(auth, email, password);
       window.location.href = 'portal.html';
     } catch (err) {
       errorBox.textContent = 'Login failed. Check your credentials and try again.';
