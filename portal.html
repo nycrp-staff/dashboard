@@ -4,6 +4,13 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>NYCRP | ER:LC Staff Portal</title>
+  <script>
+    (function () {
+      var saved = localStorage.getItem('nycrp-theme');
+      var theme = saved || (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+      if (theme === 'dark') document.documentElement.setAttribute('data-theme', 'dark');
+    })();
+  </script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="css/style.css">
@@ -41,6 +48,7 @@
         <p id="user-name" class="sidebar-user-name">Staff member</p>
         <p id="user-department" class="sidebar-user-role">No department set</p>
         <button id="logout-btn" class="sidebar-logout">Sign out</button>
+        <button data-theme-toggle class="theme-toggle" title="Toggle dark/light theme" aria-label="Toggle dark/light theme" style="margin-top:8px;"></button>
       </div>
     </aside>
 
@@ -125,7 +133,7 @@
             <option value="Department">Department</option>
             <option value="Community">Community</option>
           </select>
-          <button type="submit" class="btn btn-dark" style="align-self:flex-start;">Add event</button>
+          <button type="submit" id="event-submit-btn" class="btn btn-dark" style="align-self:flex-start;">Add event</button>
         </form>
 
         <div id="calendar-list"></div>
@@ -169,7 +177,7 @@
         <form id="update-form" class="card publish-form hidden">
           <input id="update-title" required placeholder="Post title" />
           <textarea id="update-body" required rows="4" placeholder="Write the announcement…"></textarea>
-          <button type="submit" class="btn btn-dark" style="align-self:flex-start;">Publish</button>
+          <button type="submit" id="update-submit-btn" class="btn btn-dark" style="align-self:flex-start;">Publish</button>
         </form>
 
         <div id="updates-list"></div>
@@ -196,7 +204,7 @@
             </select>
             <input id="media-url" placeholder="Image URL (optional)" />
           </div>
-          <button type="submit" class="btn btn-dark" style="align-self:flex-start;">Add media</button>
+          <button type="submit" id="media-submit-btn" class="btn btn-dark" style="align-self:flex-start;">Add media</button>
         </form>
 
         <div class="gallery-filters" id="gallery-filters"></div>
@@ -233,6 +241,7 @@
     </main>
   </div>
 
+  <script src="js/theme.js"></script>
   <script type="module" src="js/portal.js"></script>
 </body>
 </html>
