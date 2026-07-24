@@ -11,7 +11,7 @@ import { guardPortal, logout } from './auth.js';
 import { db } from './firebase-config.js';
 import {
   collection, addDoc, getDocs, query, orderBy, where, limit, serverTimestamp,
-  doc, deleteDoc,
+  doc, deleteDoc, updateDoc,
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 guardPortal((user, profile) => {
@@ -240,10 +240,10 @@ function formatEventDate(dateStr) {
 
 async function loadEvents() {
   const snap = await getDocs(query(collection(db, 'events'), orderBy('date', 'asc')));
-  return snap.docs.map((d) => d.data());
+  return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
 }
 
-function renderEventsList(events) {
+function renderEventsList(events, canPublish) {
   const el = document.getElementById('calendar-list');
   if (events.length === 0) {
     el.innerHTML = '<p class="eyebrow">No events posted yet.</p>';
@@ -265,14 +265,29 @@ function renderEventsList(events) {
           </div>
         </div>
         <span class="status-pill info">${escapeHTML(e.tag)}</span>
+        ${canPublish ? `<button class="row-delete" data-id="${escapeHTML(e.id)}" title="Delete event">\u2715</button>` : ''}
       </div>
     `;
   }).join('');
+
+  if (!canPublish) return;
+  el.querySelectorAll('.row-delete').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      if (!confirm('Delete this event? This can\u2019t be undone.')) return;
+      try {
+        await deleteDoc(doc(db, 'events', btn.dataset.id));
+        renderEventsList(await loadEvents(), canPublish);
+      } catch (err) {
+        console.error('Failed to delete event', err);
+        alert('Could not delete -- check the console for details.');
+      }
+    });
+  });
 }
 
 async function renderCalendar(session) {
   try {
-    renderEventsList(await loadEvents());
+    renderEventsList(await loadEvents(), session.canPublish);
   } catch (err) {
     console.error('Failed to load events', err);
     document.getElementById('calendar-list').innerHTML = '<p class="eyebrow">Couldn\u2019t load events.</p>';
@@ -292,7 +307,7 @@ async function renderCalendar(session) {
       await addDoc(collection(db, 'events'), { title, date, time, location, tag, createdAt: serverTimestamp() });
       form.reset();
       form.classList.add('hidden');
-      renderEventsList(await loadEvents());
+      renderEventsList(await loadEvents(), session.canPublish);
     } catch (err) {
       console.error('Failed to add event', err);
       alert('Could not save the event -- check the console for details.');
@@ -579,7 +594,7 @@ function statusTone(status) {
   return 'closed';
 }
 
-function renderApplicationsList(applications) {
+function renderApplicationsList(applications, canPublish) {
   const el = document.getElementById('applications-list');
   if (applications.length === 0) {
     el.innerHTML = '<p class="eyebrow">No listings posted yet.</p>';
@@ -589,13 +604,41 @@ function renderApplicationsList(applications) {
     <div class="card application-card">
       <div class="application-top">
         <h3 style="font-size:var(--text-lg);">${escapeHTML(a.name)}</h3>
-        <span class="status-pill ${statusTone(a.status)}"><span class="dot"></span>${escapeHTML(a.status)}</span>
+        <div style="display:flex; align-items:center; gap:8px;">
+          <span class="status-pill ${statusTone(a.status)}"><span class="dot"></span>${escapeHTML(a.status)}</span>
+          ${canPublish ? `
+            <button class="row-edit" data-id="${escapeHTML(a.id)}" title="Edit listing">\u270e</button>
+            <button class="row-delete" data-id="${escapeHTML(a.id)}" title="Delete listing">\u2715</button>
+          ` : ''}
+        </div>
       </div>
       <p class="application-desc">${escapeHTML(a.description)}</p>
       <ul class="application-reqs">${(a.requirements ?? []).map((r) => `<li>${escapeHTML(r)}</li>`).join('')}</ul>
       ${renderApplyAction(a)}
     </div>
   `).join('');
+
+  if (!canPublish) return;
+
+  el.querySelectorAll('.row-delete').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      if (!confirm('Delete this listing? This can\u2019t be undone.')) return;
+      try {
+        await deleteDoc(doc(db, 'applications', btn.dataset.id));
+        renderApplicationsList(await loadApplications(), canPublish);
+      } catch (err) {
+        console.error('Failed to delete listing', err);
+        alert('Could not delete -- check the console for details.');
+      }
+    });
+  });
+
+  el.querySelectorAll('.row-edit').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const app = applications.find((a) => a.id === btn.dataset.id);
+      if (app) startEditingApplication(app);
+    });
+  });
 }
 
 function renderApplyAction(a) {
@@ -606,9 +649,30 @@ function renderApplyAction(a) {
   return '<p class="eyebrow" style="margin-top:14px;">Contact your department lead to apply.</p>';
 }
 
+let editingApplicationId = null;
+
+function startEditingApplication(app) {
+  editingApplicationId = app.id;
+  document.getElementById('application-name').value = app.name ?? '';
+  document.getElementById('application-description').value = app.description ?? '';
+  document.getElementById('application-requirements').value = (app.requirements ?? []).join('\n');
+  document.getElementById('application-link').value = app.link ?? '';
+  document.getElementById('application-status').value = app.status ?? 'open';
+  document.getElementById('application-submit-btn').textContent = 'Save changes';
+  document.getElementById('application-form').classList.remove('hidden');
+  document.getElementById('section-applications').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function resetApplicationForm(form) {
+  editingApplicationId = null;
+  form.reset();
+  form.classList.add('hidden');
+  document.getElementById('application-submit-btn').textContent = 'Publish listing';
+}
+
 async function renderApplications(session) {
   try {
-    renderApplicationsList(await loadApplications());
+    renderApplicationsList(await loadApplications(), session.canPublish);
   } catch (err) {
     console.error('Failed to load applications', err);
     document.getElementById('applications-list').innerHTML = '<p class="eyebrow">Couldn\u2019t load listings.</p>';
@@ -616,6 +680,16 @@ async function renderApplications(session) {
 
   if (!session.canPublish) return;
   const form = setupPublishToggle('new-application-btn', 'application-form');
+
+  // Opening the form fresh (not via an Edit click) should always start a
+  // new listing, not silently continue editing a previous one.
+  document.getElementById('new-application-btn').addEventListener('click', () => {
+    if (!form.classList.contains('hidden') && editingApplicationId === null) return;
+    editingApplicationId = null;
+    form.reset();
+    document.getElementById('application-submit-btn').textContent = 'Publish listing';
+  });
+
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
     const name = document.getElementById('application-name').value;
@@ -624,17 +698,19 @@ async function renderApplications(session) {
       .split('\n').map((r) => r.trim()).filter(Boolean);
     const link = document.getElementById('application-link').value || null;
     const status = document.getElementById('application-status').value;
+    const payload = { name, description, requirements, link, status };
 
     try {
-      await addDoc(collection(db, 'applications'), {
-        name, description, requirements, link, status, createdAt: serverTimestamp(),
-      });
-      form.reset();
-      form.classList.add('hidden');
-      renderApplicationsList(await loadApplications());
+      if (editingApplicationId) {
+        await updateDoc(doc(db, 'applications', editingApplicationId), payload);
+      } else {
+        await addDoc(collection(db, 'applications'), { ...payload, createdAt: serverTimestamp() });
+      }
+      resetApplicationForm(form);
+      renderApplicationsList(await loadApplications(), session.canPublish);
     } catch (err) {
-      console.error('Failed to publish listing', err);
-      alert('Could not publish the listing -- check the console for details.');
+      console.error('Failed to save listing', err);
+      alert('Could not save the listing -- check the console for details.');
     }
   });
 }
