@@ -4,6 +4,14 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>NYCRP | ER:LC Staff Portal — Login</title>
+  <script>
+    // Applied before CSS renders, so there's no flash of the wrong theme.
+    (function () {
+      var saved = localStorage.getItem('nycrp-theme');
+      var theme = saved || (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+      if (theme === 'dark') document.documentElement.setAttribute('data-theme', 'dark');
+    })();
+  </script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="css/style.css">
@@ -12,6 +20,7 @@
 <body>
   <div class="login-page">
     <div class="login-scanline"></div>
+    <button data-theme-toggle class="theme-toggle theme-toggle-floating" title="Toggle dark/light theme" aria-label="Toggle dark/light theme"></button>
     <div class="login-card card">
       <div class="login-badge-row">
         <div class="login-badge-icon">
@@ -22,7 +31,7 @@
           </svg>
         </div>
         <div>
-          <p class="eyebrow">NYCRP · ER:LC</p>
+          <p class="eyebrow">New York City Roleplay/p>
           <h1 class="login-title">Staff Portal</h1>
         </div>
       </div>
@@ -31,7 +40,7 @@
 
       <form id="login-form" class="login-form">
         <label class="login-label" for="username">Staff username</label>
-        <input id="username" type="email" class="login-input" required placeholder="callsign@nycrp.staff" autocomplete="username" />
+        <input id="username" type="email" class="login-input" required placeholder="username@nycrp.staff" autocomplete="username" />
 
         <label class="login-label" for="password">Password</label>
         <input id="password" type="password" class="login-input" required placeholder="••••••••" autocomplete="current-password" />
@@ -50,6 +59,7 @@
     </div>
   </div>
 
+  <script src="js/theme.js"></script>
   <script type="module" src="js/auth.js"></script>
 </body>
 </html>
