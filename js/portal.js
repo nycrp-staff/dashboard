@@ -10,7 +10,7 @@
 import { guardPortal, logout } from './auth.js';
 import { db } from './firebase-config.js';
 import {
-  collection, addDoc, getDocs, query, orderBy, where, serverTimestamp,
+  collection, addDoc, getDocs, query, orderBy, where, limit, serverTimestamp,
   doc, deleteDoc,
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
@@ -75,17 +75,7 @@ function setupPublishToggle(btnId, formId) {
   return form;
 }
 
-// ---------- Home ----------
-const RECENT_ACTIVITY = [
-  { title: 'Winter event schedule posted', author: 'Command Staff', time: '2h ago', tone: 'info' },
-  { title: 'Server Rules \u00a74 (Vehicle Conduct) revised', author: 'Admin Team', time: '1d ago', tone: 'warn' },
-  { title: 'EMS department recruiting for winter cycle', author: 'EMS Command', time: '3d ago', tone: 'open' },
-];
-
-const UPCOMING_EVENTS_HOME = [
-  { title: 'Weekly Patrol Session', date: 'Sat, Jul 25', time: '8:00 PM ET' },
-  { title: 'Department Head Meeting', date: 'Mon, Jul 27', time: '9:00 PM ET' },
-];
+// ---------- Home (live Firestore) ----------
 
 const QUICK_LINKS = [
   { section: 'rules', label: 'Server Rules' },
@@ -94,25 +84,61 @@ const QUICK_LINKS = [
   { section: 'applications', label: 'Internal Applications' },
 ];
 
-function renderHome() {
+function formatRelativeTime(ts) {
+  if (!ts?.toDate) return 'Just now';
+  const diffMs = Date.now() - ts.toDate().getTime();
+  const mins = Math.floor(diffMs / 60000);
+  if (mins < 1) return 'Just now';
+  if (mins < 60) return `${mins}m ago`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  return `${days}d ago`;
+}
+
+async function renderHome() {
   const feed = document.getElementById('home-activity-feed');
-  feed.innerHTML = RECENT_ACTIVITY.map((u) => `
-    <div class="activity-row">
-      <span class="status-pill ${u.tone}" style="height:fit-content;"><span class="dot"></span></span>
-      <div>
-        <p class="activity-title">${escapeHTML(u.title)}</p>
-        <p class="activity-meta">${escapeHTML(u.author)} \u00b7 ${escapeHTML(u.time)}</p>
-      </div>
-    </div>
-  `).join('');
+  try {
+    const snap = await getDocs(query(collection(db, 'updates'), orderBy('createdAt', 'desc'), limit(3)));
+    const recent = snap.docs.map((d) => d.data());
+    feed.innerHTML = recent.length === 0
+      ? '<p class="eyebrow">No announcements yet.</p>'
+      : recent.map((u) => `
+        <div class="activity-row">
+          <span class="status-pill info" style="height:fit-content;"><span class="dot"></span></span>
+          <div>
+            <p class="activity-title">${escapeHTML(u.title)}</p>
+            <p class="activity-meta">${escapeHTML(u.authorName ?? '')} \u00b7 ${escapeHTML(formatRelativeTime(u.createdAt))}</p>
+          </div>
+        </div>
+      `).join('');
+  } catch (err) {
+    console.error('Failed to load home activity feed', err);
+    feed.innerHTML = '<p class="eyebrow">Couldn\u2019t load recent activity.</p>';
+  }
 
   const events = document.getElementById('home-events-feed');
-  events.innerHTML = UPCOMING_EVENTS_HOME.map((e) => `
-    <div class="event-row">
-      <p class="activity-title">${escapeHTML(e.title)}</p>
-      <p class="activity-meta">${escapeHTML(e.date)} \u00b7 ${escapeHTML(e.time)}</p>
-    </div>
-  `).join('');
+  try {
+    const today = new Date().toISOString().slice(0, 10);
+    const snap = await getDocs(query(
+      collection(db, 'events'), where('date', '>=', today), orderBy('date', 'asc'), limit(2),
+    ));
+    const upcoming = snap.docs.map((d) => d.data());
+    events.innerHTML = upcoming.length === 0
+      ? '<p class="eyebrow">No upcoming events posted.</p>'
+      : upcoming.map((e) => {
+        const { day, num } = formatEventDate(e.date);
+        return `
+          <div class="event-row">
+            <p class="activity-title">${escapeHTML(e.title)}</p>
+            <p class="activity-meta">${escapeHTML(day)}, ${escapeHTML(num)} \u00b7 ${escapeHTML(e.time)}</p>
+          </div>
+        `;
+      }).join('');
+  } catch (err) {
+    console.error('Failed to load home events feed', err);
+    events.innerHTML = '<p class="eyebrow">Couldn\u2019t load upcoming events.</p>';
+  }
 
   const links = document.getElementById('home-quick-links');
   links.innerHTML = QUICK_LINKS.map((l) => `
