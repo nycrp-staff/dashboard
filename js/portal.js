@@ -1,11 +1,6 @@
 // portal.js
 // Renders every section of the staff portal and wires up navigation,
 // accordions, the media lightbox, and role-gated publish forms.
-//
-// Live Firestore wiring: Updates/News, Staff Directory, Media Gallery,
-// Internal Applications, and Event Calendar all read from and (where
-// noted) write to Firestore. Departments still renders from a
-// placeholder array -- say the word if you want that wired up too.
 
 import { guardPortal, logout } from './auth.js';
 import { db } from './firebase-config.js';
@@ -265,7 +260,12 @@ function renderEventsList(events, canPublish) {
           </div>
         </div>
         <span class="status-pill info">${escapeHTML(e.tag)}</span>
-        ${canPublish ? `<button class="row-delete" data-id="${escapeHTML(e.id)}" title="Delete event">\u2715</button>` : ''}
+        ${canPublish ? `
+          <div style="display:flex; gap:6px;">
+            <button class="row-edit" data-id="${escapeHTML(e.id)}" title="Edit event">\u270e</button>
+            <button class="row-delete" data-id="${escapeHTML(e.id)}" title="Delete event">\u2715</button>
+          </div>
+        ` : ''}
       </div>
     `;
   }).join('');
@@ -283,6 +283,27 @@ function renderEventsList(events, canPublish) {
       }
     });
   });
+
+  el.querySelectorAll('.row-edit').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const ev = events.find((e) => e.id === btn.dataset.id);
+      if (ev) startEditingEvent(ev);
+    });
+  });
+}
+
+let editingEventId = null;
+
+function startEditingEvent(ev) {
+  editingEventId = ev.id;
+  document.getElementById('event-title').value = ev.title ?? '';
+  document.getElementById('event-date').value = ev.date ?? '';
+  document.getElementById('event-time').value = ev.time ?? '';
+  document.getElementById('event-location').value = ev.location ?? '';
+  document.getElementById('event-tag').value = ev.tag ?? 'Recurring';
+  document.getElementById('event-submit-btn').textContent = 'Save changes';
+  document.getElementById('event-form').classList.remove('hidden');
+  document.getElementById('section-calendar').scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
 async function renderCalendar(session) {
@@ -295,6 +316,14 @@ async function renderCalendar(session) {
 
   if (!session.canPublish) return;
   const form = setupPublishToggle('new-event-btn', 'event-form');
+
+  document.getElementById('new-event-btn').addEventListener('click', () => {
+    if (!form.classList.contains('hidden') && editingEventId === null) return;
+    editingEventId = null;
+    form.reset();
+    document.getElementById('event-submit-btn').textContent = 'Add event';
+  });
+
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
     const title = document.getElementById('event-title').value;
@@ -302,14 +331,21 @@ async function renderCalendar(session) {
     const time = document.getElementById('event-time').value;
     const location = document.getElementById('event-location').value;
     const tag = document.getElementById('event-tag').value;
+    const payload = { title, date, time, location, tag };
 
     try {
-      await addDoc(collection(db, 'events'), { title, date, time, location, tag, createdAt: serverTimestamp() });
+      if (editingEventId) {
+        await updateDoc(doc(db, 'events', editingEventId), payload);
+      } else {
+        await addDoc(collection(db, 'events'), { ...payload, createdAt: serverTimestamp() });
+      }
+      editingEventId = null;
       form.reset();
       form.classList.add('hidden');
+      document.getElementById('event-submit-btn').textContent = 'Add event';
       renderEventsList(await loadEvents(), session.canPublish);
     } catch (err) {
-      console.error('Failed to add event', err);
+      console.error('Failed to save event', err);
       alert('Could not save the event -- check the console for details.');
     }
   });
@@ -395,9 +431,12 @@ function renderPostsList(posts, canPublish) {
     <article class="card post-card">
       <div class="post-top">
         <h3>${escapeHTML(p.title)}</h3>
-        <div style="display:flex; align-items:center; gap:10px;">
+        <div style="display:flex; align-items:center; gap:8px;">
           <span class="post-timestamp">${escapeHTML(formatTimestamp(p.createdAt))}</span>
-          ${canPublish ? `<button class="post-delete" data-id="${escapeHTML(p.id)}" title="Delete announcement">\u2715</button>` : ''}
+          ${canPublish ? `
+            <button class="row-edit" data-id="${escapeHTML(p.id)}" title="Edit announcement">\u270e</button>
+            <button class="row-delete" data-id="${escapeHTML(p.id)}" title="Delete announcement">\u2715</button>
+          ` : ''}
         </div>
       </div>
       <p class="post-author">${escapeHTML(p.authorName ?? '')}</p>
@@ -405,20 +444,38 @@ function renderPostsList(posts, canPublish) {
     </article>
   `).join('');
 
-  if (canPublish) {
-    el.querySelectorAll('.post-delete').forEach((btn) => {
-      btn.addEventListener('click', async () => {
-        if (!confirm('Delete this announcement? This can\u2019t be undone.')) return;
-        try {
-          await deleteDoc(doc(db, 'updates', btn.dataset.id));
-          renderPostsList(await loadUpdates(), canPublish);
-        } catch (err) {
-          console.error('Failed to delete update', err);
-          alert('Could not delete -- check the console for details.');
-        }
-      });
+  if (!canPublish) return;
+
+  el.querySelectorAll('.row-delete').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      if (!confirm('Delete this announcement? This can\u2019t be undone.')) return;
+      try {
+        await deleteDoc(doc(db, 'updates', btn.dataset.id));
+        renderPostsList(await loadUpdates(), canPublish);
+      } catch (err) {
+        console.error('Failed to delete update', err);
+        alert('Could not delete -- check the console for details.');
+      }
     });
-  }
+  });
+
+  el.querySelectorAll('.row-edit').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const post = posts.find((p) => p.id === btn.dataset.id);
+      if (post) startEditingUpdate(post);
+    });
+  });
+}
+
+let editingUpdateId = null;
+
+function startEditingUpdate(post) {
+  editingUpdateId = post.id;
+  document.getElementById('update-title').value = post.title ?? '';
+  document.getElementById('update-body').value = post.body ?? '';
+  document.getElementById('update-submit-btn').textContent = 'Save changes';
+  document.getElementById('update-form').classList.remove('hidden');
+  document.getElementById('section-updates').scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
 async function renderUpdates(session) {
@@ -431,21 +488,35 @@ async function renderUpdates(session) {
 
   if (!session.canPublish) return;
   const form = setupPublishToggle('new-post-btn', 'update-form');
+
+  document.getElementById('new-post-btn').addEventListener('click', () => {
+    if (!form.classList.contains('hidden') && editingUpdateId === null) return;
+    editingUpdateId = null;
+    form.reset();
+    document.getElementById('update-submit-btn').textContent = 'Publish';
+  });
+
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
     const title = document.getElementById('update-title').value;
     const body = document.getElementById('update-body').value;
 
     try {
-      await addDoc(collection(db, 'updates'), {
-        title, body, authorName: session.authorName, createdAt: serverTimestamp(),
-      });
+      if (editingUpdateId) {
+        await updateDoc(doc(db, 'updates', editingUpdateId), { title, body });
+      } else {
+        await addDoc(collection(db, 'updates'), {
+          title, body, authorName: session.authorName, createdAt: serverTimestamp(),
+        });
+      }
+      editingUpdateId = null;
       form.reset();
       form.classList.add('hidden');
+      document.getElementById('update-submit-btn').textContent = 'Publish';
       renderPostsList(await loadUpdates(), session.canPublish);
     } catch (err) {
-      console.error('Failed to publish update', err);
-      alert('Could not publish -- check the console for details.');
+      console.error('Failed to save update', err);
+      alert('Could not save -- check the console for details.');
     }
   });
 }
@@ -483,7 +554,12 @@ function renderGalleryGrid(allMedia, filter, canPublish) {
           <span class="status-pill info">${escapeHTML(m.category)}</span>
         </div>
       </button>
-      ${canPublish ? `<button class="media-delete" data-id="${escapeHTML(m.id)}" title="Delete media">\u2715</button>` : ''}
+      ${canPublish ? `
+        <div class="gallery-actions">
+          <button class="row-edit" data-id="${escapeHTML(m.id)}" title="Edit media">\u270e</button>
+          <button class="row-delete" data-id="${escapeHTML(m.id)}" title="Delete media">\u2715</button>
+        </div>
+      ` : ''}
     </div>
   `).join('');
 
@@ -492,26 +568,44 @@ function renderGalleryGrid(allMedia, filter, canPublish) {
   });
 
   if (canPublish) {
-    el.querySelectorAll('.media-delete').forEach((btn) => {
+    el.querySelectorAll('.row-delete').forEach((btn) => {
       btn.addEventListener('click', async (e) => {
         e.stopPropagation();
         if (!confirm('Delete this media item? This can\u2019t be undone.')) return;
         try {
           await deleteDoc(doc(db, 'media', btn.dataset.id));
           const fresh = await loadMedia();
-          renderGalleryGrid(fresh, filter, canPublish);
-          // Keep the outer allMedia reference in sync for future filter clicks.
           allMediaCache = fresh;
+          renderGalleryGrid(fresh, filter, canPublish);
         } catch (err) {
           console.error('Failed to delete media', err);
           alert('Could not delete -- check the console for details.');
         }
       });
     });
+
+    el.querySelectorAll('.row-edit').forEach((btn) => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const item = items.find((m) => m.id === btn.dataset.id);
+        if (item) startEditingMedia(item);
+      });
+    });
   }
 }
 
 let allMediaCache = [];
+let editingMediaId = null;
+
+function startEditingMedia(item) {
+  editingMediaId = item.id;
+  document.getElementById('media-caption').value = item.caption ?? '';
+  document.getElementById('media-category').value = item.category ?? 'Events';
+  document.getElementById('media-url').value = item.imageUrl ?? '';
+  document.getElementById('media-submit-btn').textContent = 'Save changes';
+  document.getElementById('media-form').classList.remove('hidden');
+  document.getElementById('section-media').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
 
 async function renderMedia(session) {
   try {
@@ -535,6 +629,14 @@ async function renderMedia(session) {
 
   if (!session.canPublish) return;
   const form = setupPublishToggle('new-media-btn', 'media-form');
+
+  document.getElementById('new-media-btn').addEventListener('click', () => {
+    if (!form.classList.contains('hidden') && editingMediaId === null) return;
+    editingMediaId = null;
+    form.reset();
+    document.getElementById('media-submit-btn').textContent = 'Add media';
+  });
+
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
     const caption = document.getElementById('media-caption').value;
@@ -542,16 +644,22 @@ async function renderMedia(session) {
     const imageUrl = document.getElementById('media-url').value || null;
 
     try {
-      await addDoc(collection(db, 'media'), {
-        caption, category, imageUrl, uploadedBy: session.authorName, createdAt: serverTimestamp(),
-      });
+      if (editingMediaId) {
+        await updateDoc(doc(db, 'media', editingMediaId), { caption, category, imageUrl });
+      } else {
+        await addDoc(collection(db, 'media'), {
+          caption, category, imageUrl, uploadedBy: session.authorName, createdAt: serverTimestamp(),
+        });
+      }
+      editingMediaId = null;
       form.reset();
       form.classList.add('hidden');
+      document.getElementById('media-submit-btn').textContent = 'Add media';
       allMediaCache = await loadMedia();
       renderGalleryGrid(allMediaCache, 'All', session.canPublish);
       filtersEl.querySelectorAll('.gallery-filter').forEach((b, i) => b.classList.toggle('active', i === 0));
     } catch (err) {
-      console.error('Failed to add media', err);
+      console.error('Failed to save media', err);
       alert('Could not save the media entry -- check the console for details.');
     }
   });
