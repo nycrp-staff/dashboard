@@ -11,6 +11,7 @@ import { guardPortal, logout } from './auth.js';
 import { db } from './firebase-config.js';
 import {
   collection, addDoc, getDocs, query, orderBy, where, serverTimestamp,
+  doc, deleteDoc,
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 guardPortal((user, profile) => {
@@ -335,7 +336,7 @@ async function renderDirectory() {
 
 async function loadUpdates() {
   const snap = await getDocs(query(collection(db, 'updates'), orderBy('createdAt', 'desc')));
-  return snap.docs.map((d) => d.data());
+  return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
 }
 
 function formatTimestamp(ts) {
@@ -343,7 +344,7 @@ function formatTimestamp(ts) {
   return ts.toDate().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 }
 
-function renderPostsList(posts) {
+function renderPostsList(posts, canPublish) {
   const el = document.getElementById('updates-list');
   if (posts.length === 0) {
     el.innerHTML = '<p class="eyebrow">No announcements posted yet.</p>';
@@ -353,17 +354,35 @@ function renderPostsList(posts) {
     <article class="card post-card">
       <div class="post-top">
         <h3>${escapeHTML(p.title)}</h3>
-        <span class="post-timestamp">${escapeHTML(formatTimestamp(p.createdAt))}</span>
+        <div style="display:flex; align-items:center; gap:10px;">
+          <span class="post-timestamp">${escapeHTML(formatTimestamp(p.createdAt))}</span>
+          ${canPublish ? `<button class="post-delete" data-id="${escapeHTML(p.id)}" title="Delete announcement">\u2715</button>` : ''}
+        </div>
       </div>
       <p class="post-author">${escapeHTML(p.authorName ?? '')}</p>
       <p class="post-body">${escapeHTML(p.body)}</p>
     </article>
   `).join('');
+
+  if (canPublish) {
+    el.querySelectorAll('.post-delete').forEach((btn) => {
+      btn.addEventListener('click', async () => {
+        if (!confirm('Delete this announcement? This can\u2019t be undone.')) return;
+        try {
+          await deleteDoc(doc(db, 'updates', btn.dataset.id));
+          renderPostsList(await loadUpdates(), canPublish);
+        } catch (err) {
+          console.error('Failed to delete update', err);
+          alert('Could not delete -- check the console for details.');
+        }
+      });
+    });
+  }
 }
 
 async function renderUpdates(session) {
   try {
-    renderPostsList(await loadUpdates());
+    renderPostsList(await loadUpdates(), session.canPublish);
   } catch (err) {
     console.error('Failed to load updates', err);
     document.getElementById('updates-list').innerHTML = '<p class="eyebrow">Couldn\u2019t load updates.</p>';
@@ -382,7 +401,7 @@ async function renderUpdates(session) {
       });
       form.reset();
       form.classList.add('hidden');
-      renderPostsList(await loadUpdates());
+      renderPostsList(await loadUpdates(), session.canPublish);
     } catch (err) {
       console.error('Failed to publish update', err);
       alert('Could not publish -- check the console for details.');
@@ -390,13 +409,14 @@ async function renderUpdates(session) {
   });
 }
 
+
 // ---------- Media Gallery (live Firestore) ----------
 
 const MEDIA_CATEGORIES = ['All', 'Events', 'Departments', 'Community'];
 
 async function loadMedia() {
   const snap = await getDocs(collection(db, 'media'));
-  return snap.docs.map((d) => d.data());
+  return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
 }
 
 function galleryThumbHTML(m) {
@@ -406,7 +426,7 @@ function galleryThumbHTML(m) {
   return `<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/></svg>`;
 }
 
-function renderGalleryGrid(allMedia, filter) {
+function renderGalleryGrid(allMedia, filter, canPublish) {
   const el = document.getElementById('gallery-grid');
   const items = filter === 'All' ? allMedia : allMedia.filter((m) => m.category === filter);
   if (items.length === 0) {
@@ -414,24 +434,47 @@ function renderGalleryGrid(allMedia, filter) {
     return;
   }
   el.innerHTML = items.map((m) => `
-    <button class="card gallery-item" data-caption="${escapeHTML(m.caption)}" data-url="${escapeHTML(m.imageUrl ?? '')}">
-      <div class="gallery-thumb">${galleryThumbHTML(m)}</div>
-      <div class="gallery-caption">
-        <p>${escapeHTML(m.caption)}</p>
-        <span class="status-pill info">${escapeHTML(m.category)}</span>
-      </div>
-    </button>
+    <div class="card gallery-item-wrap">
+      <button class="gallery-item" data-caption="${escapeHTML(m.caption)}" data-url="${escapeHTML(m.imageUrl ?? '')}">
+        <div class="gallery-thumb">${galleryThumbHTML(m)}</div>
+        <div class="gallery-caption">
+          <p>${escapeHTML(m.caption)}</p>
+          <span class="status-pill info">${escapeHTML(m.category)}</span>
+        </div>
+      </button>
+      ${canPublish ? `<button class="media-delete" data-id="${escapeHTML(m.id)}" title="Delete media">\u2715</button>` : ''}
+    </div>
   `).join('');
 
   el.querySelectorAll('.gallery-item').forEach((btn) => {
     btn.addEventListener('click', () => openLightbox(btn.dataset.caption, btn.dataset.url));
   });
+
+  if (canPublish) {
+    el.querySelectorAll('.media-delete').forEach((btn) => {
+      btn.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        if (!confirm('Delete this media item? This can\u2019t be undone.')) return;
+        try {
+          await deleteDoc(doc(db, 'media', btn.dataset.id));
+          const fresh = await loadMedia();
+          renderGalleryGrid(fresh, filter, canPublish);
+          // Keep the outer allMedia reference in sync for future filter clicks.
+          allMediaCache = fresh;
+        } catch (err) {
+          console.error('Failed to delete media', err);
+          alert('Could not delete -- check the console for details.');
+        }
+      });
+    });
+  }
 }
 
+let allMediaCache = [];
+
 async function renderMedia(session) {
-  let allMedia = [];
   try {
-    allMedia = await loadMedia();
+    allMediaCache = await loadMedia();
   } catch (err) {
     console.error('Failed to load media', err);
   }
@@ -444,10 +487,10 @@ async function renderMedia(session) {
     btn.addEventListener('click', () => {
       filtersEl.querySelectorAll('.gallery-filter').forEach((b) => b.classList.remove('active'));
       btn.classList.add('active');
-      renderGalleryGrid(allMedia, btn.dataset.cat);
+      renderGalleryGrid(allMediaCache, btn.dataset.cat, session.canPublish);
     });
   });
-  renderGalleryGrid(allMedia, 'All');
+  renderGalleryGrid(allMediaCache, 'All', session.canPublish);
 
   if (!session.canPublish) return;
   const form = setupPublishToggle('new-media-btn', 'media-form');
@@ -463,8 +506,8 @@ async function renderMedia(session) {
       });
       form.reset();
       form.classList.add('hidden');
-      allMedia = await loadMedia();
-      renderGalleryGrid(allMedia, 'All');
+      allMediaCache = await loadMedia();
+      renderGalleryGrid(allMediaCache, 'All', session.canPublish);
       filtersEl.querySelectorAll('.gallery-filter').forEach((b, i) => b.classList.toggle('active', i === 0));
     } catch (err) {
       console.error('Failed to add media', err);
@@ -501,7 +544,7 @@ function openLightbox(caption, imageUrl) {
 
 async function loadApplications() {
   const snap = await getDocs(query(collection(db, 'applications'), orderBy('createdAt', 'desc')));
-  return snap.docs.map((d) => d.data());
+  return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
 }
 
 function statusTone(status) {
@@ -524,9 +567,17 @@ function renderApplicationsList(applications) {
       </div>
       <p class="application-desc">${escapeHTML(a.description)}</p>
       <ul class="application-reqs">${(a.requirements ?? []).map((r) => `<li>${escapeHTML(r)}</li>`).join('')}</ul>
-      ${a.status === 'open' ? '<button class="btn btn-primary application-apply">Apply</button>' : ''}
+      ${renderApplyAction(a)}
     </div>
   `).join('');
+}
+
+function renderApplyAction(a) {
+  if (a.status !== 'open') return '';
+  if (a.link) {
+    return `<a href="${escapeHTML(a.link)}" target="_blank" rel="noopener" class="btn btn-primary application-apply">Apply</a>`;
+  }
+  return '<p class="eyebrow" style="margin-top:14px;">Contact your department lead to apply.</p>';
 }
 
 async function renderApplications(session) {
@@ -545,11 +596,12 @@ async function renderApplications(session) {
     const description = document.getElementById('application-description').value;
     const requirements = document.getElementById('application-requirements').value
       .split('\n').map((r) => r.trim()).filter(Boolean);
+    const link = document.getElementById('application-link').value || null;
     const status = document.getElementById('application-status').value;
 
     try {
       await addDoc(collection(db, 'applications'), {
-        name, description, requirements, status, createdAt: serverTimestamp(),
+        name, description, requirements, link, status, createdAt: serverTimestamp(),
       });
       form.reset();
       form.classList.add('hidden');
