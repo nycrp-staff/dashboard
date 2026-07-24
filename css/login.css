@@ -27,7 +27,7 @@
 .login-card {
   width: 100%;
   max-width: 400px;
-  background: #fff;
+  background: var(--surface);
   border-radius: var(--radius-lg);
   padding: 32px 28px;
   box-shadow: var(--shadow-elevated);
@@ -55,7 +55,7 @@
 
 .login-title {
   font-size: var(--text-2xl);
-  color: var(--ink-900);
+  color: var(--text);
   margin-top: 2px;
 }
 
@@ -89,6 +89,8 @@
   border: 1px solid var(--gray-200);
   font-size: var(--text-base);
   font-family: var(--font-body);
+  background: var(--surface);
+  color: var(--text);
 }
 
 .login-error {
