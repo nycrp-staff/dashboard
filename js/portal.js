@@ -355,10 +355,13 @@ async function renderCalendar(session) {
 // Still placeholder -- say the word if you want this wired to
 // getDocs(collection(db, 'departments')) too.
 const DEPARTMENTS = [
-  { name: 'Police Department', description: 'Handles patrol, traffic enforcement, and criminal investigations across the city.', lead: 'Chief R. Alvarez' },
-  { name: 'Emergency Medical Services', description: 'Responds to medical emergencies and coordinates with fire and police on scene.', lead: 'Director T. Nguyen' },
-  { name: 'Fire Department', description: 'Handles fire suppression, rescue operations, and hazard response.', lead: 'Chief M. Okafor' },
-  { name: 'Human Resources', description: 'Manages staff applications, onboarding, and internal conduct reviews.', lead: 'Director S. Patel' },
+  { name: 'Moderation Team', description: 'The New York City Roleplay Moderation Team is a vital part of our day-to-day operations when it comes to hosting and managing our in-game sessions. The team is solely responsible for handling standard in-game disputes and overseeing appropriately approved roleplays.', lead: 'N/A' },
+  { name: 'Administration Team', description: 'The New York City Roleplay Administration Team is a step up from the standard moderation team. While still possessing a similar quota to the moderation team, the administration team is also responsible for enforcing in-game bans, as well as assisting and guiding the members of the moderation team.', lead: 'N/A' },
+  { name: 'Professional Standards Team', description: 'The New York City Roleplay Professional Standards Team is responsible for maintaining the standards of our staff team. They do this by issuing necessary infractions, for example warnings and strikes, if a member disobeys the standards expected of them. This team is also responsible for general Discord moderation, such as muting members.', lead: 'N/A' },
+  { name: 'Management Team', description: 'The New York City Roleplay Management Team is responsible for assisting lower-ranked members of staff in their day-to-day duties. They do this by overseeing the moderation, professionalism, and dedication of staff members, and subsequently promoting them, or reporting them to Professional Standards, depending on the outcome of their behaviour. This team is also responsible for further Discord moderation, such as banning members.', lead: 'N/A' },
+  { name: 'Directorship Team', description: 'The New York City Roleplay Directorship Team is responsible for the general management of the Discord server and in-game server. This team manages and oversees the work of the department heads, but also general staff members alongside that.', lead: 'CoachM' },
+  { name: 'Foundership Team', description: 'The New York City Roleplay Foundership Team handles every aspect of the server, and manages the Directorship Team. This team consists of the two owners of New York City Roleplay.', lead: 'Harley & Jay' },
+  
 ];
 
 function renderDepartments() {
