@@ -185,6 +185,8 @@
   text-align: left;
   font-weight: 600;
   font-size: var(--text-base);
+  color: var(--text);
+  font-family: var(--font-body);
 }
 .accordion-trigger .chevron { transition: transform 150ms ease; }
 .accordion-item.open .chevron { transform: rotate(180deg); }
@@ -346,7 +348,7 @@
   width: 90%;
 }
 .lightbox-top { display: flex; justify-content: space-between; margin-bottom: 12px; }
-.lightbox-close { background: none; border: none; }
+.lightbox-close { background: none; border: none; color: var(--text); }
 .lightbox-image {
   aspect-ratio: 4 / 3;
   background: var(--gray-200);
