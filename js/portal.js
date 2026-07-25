@@ -193,7 +193,7 @@ function renderRules() {
 // ---------- FAQs ----------
 const FAQS = [
   { q: 'How do I request a leave of absence?', a: 'Submit a LOA form through the Internal Applications page under your department, and tag your department head for approval.' },
-  { q: 'Who do I contact for a rule dispute?', a: 'Open a ticket in the staff Discord support channel \u2014 do not dispute moderation actions in public chat.' },
+  { q: 'Who do I  for a rule dispute?', a: 'Open a ticket in the staff Discord support channel \u2014 do not dispute moderation actions in public chat.' },
   { q: 'How often is the Event Calendar updated?', a: 'Command staff update it weekly, typically every Sunday, with the following week\u2019s scheduled sessions.' },
   { q: 'Where can I find department-specific SOPs?', a: 'Each department card on the Departments page links out to its SOP document once published.' },
 ];
@@ -757,7 +757,6 @@ function renderApplyAction(a) {
   if (a.link) {
     return `<a href="${escapeHTML(a.link)}" target="_blank" rel="noopener" class="btn btn-primary application-apply">Apply</a>`;
   }
-  return '<p class="eyebrow" style="margin-top:14px;">Contact your department lead to apply.</p>';
 }
 
 let editingApplicationId = null;
