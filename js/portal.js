@@ -192,10 +192,13 @@ function renderRules() {
 
 // ---------- FAQs ----------
 const FAQS = [
-  { q: 'How do I request a leave of absence?', a: 'Submit a LOA form through the Internal Applications page under your department, and tag your department head for approval.' },
-  { q: 'Who do I  for a rule dispute?', a: 'Open a ticket in the staff Discord support channel \u2014 do not dispute moderation actions in public chat.' },
-  { q: 'How often is the Event Calendar updated?', a: 'Command staff update it weekly, typically every Sunday, with the following week\u2019s scheduled sessions.' },
-  { q: 'Where can I find department-specific SOPs?', a: 'Each department card on the Departments page links out to its SOP document once published.' },
+  { q: 'How do I request a Leave of Absence?', a: 'You can request a Leave of Absence (LOA) via the NYCRP Melonly Dashboard.' },
+  { q: 'What should I do if I am unsure on how to handle a situation?', a: 'Contact another on duty member of staff using the chain of command (CoC) system. Never guess when issuing punishments.' },
+  { q: 'What do I do if another staff member breaks the rules?', a: 'Report the incident privately to the Professional Standards Team, with evidence. Do not argue or attempt to handle the matter publicly.' },
+  { q: 'What if I make a mistake?', a: 'Notify a senior staff member immediately. Honest mistakes, depending on the severity, are usually waved over and wont result in punishment.' },
+  { q: 'How should staff communicate?', a: 'Be respectful, professional, and unbiased at all times. Avoid arguments or confrontations with community members.' },
+  { q: 'Who do I contact if I have questions?', a: 'Contact either your Department Head, the High Ranking Team, or a member of the Senior High Ranking Team, depending on your issue.' },
+  
 ];
 
 function renderFAQs() {
