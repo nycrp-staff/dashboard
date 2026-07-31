@@ -380,41 +380,6 @@ function renderDepartments() {
   `).join('');
 }
 
-// ---------- Staff Directory (live Firestore) ----------
-// Reads every /staff doc with active == true, sorted by username.
-
-async function renderDirectory() {
-  const el = document.getElementById('directory-table');
-  el.innerHTML = '<p class="eyebrow" style="padding:16px 20px;">Loading roster\u2026</p>';
-
-  let staffList = [];
-  try {
-    const snap = await getDocs(query(collection(db, 'staff'), where('active', '==', true)));
-    staffList = snap.docs.map((d) => d.data()).sort((a, b) =>
-      (a.username ?? '').localeCompare(b.username ?? ''));
-  } catch (err) {
-    console.error('Failed to load staff directory', err);
-    el.innerHTML = '<p class="eyebrow" style="padding:16px 20px;">Couldn\u2019t load the staff directory.</p>';
-    return;
-  }
-
-  const header = `
-    <div class="directory-row directory-header">
-      <span class="eyebrow" style="margin:0;">Name</span>
-      <span class="eyebrow" style="margin:0;">Department</span>
-      <span class="eyebrow" style="margin:0;">Rank</span>
-    </div>
-  `;
-  const rows = staffList.map((s) => `
-    <div class="directory-row">
-      <span class="directory-name">${escapeHTML(s.username ?? '\u2014')}</span>
-      <span class="directory-cell">${escapeHTML(s.department ?? '\u2014')}</span>
-      <span class="directory-cell">${escapeHTML(s.rank ?? '\u2014')}</span>
-    </div>
-  `).join('');
-  el.innerHTML = header + (rows || '<p class="eyebrow" style="padding:16px 20px;">No active staff on file yet.</p>');
-}
-
 // ---------- Updates / News (live Firestore) ----------
 
 async function loadUpdates() {
